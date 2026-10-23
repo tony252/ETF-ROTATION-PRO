@@ -20,9 +20,18 @@ GitHub Actions 每日19:00(北京时间)自动运行
 """
 import json
 import os
+import sys
 import datetime
 import urllib.request
 import urllib.error
+
+# Windows 控制台默认 GBK, 输出 emoji/勾号会抛 UnicodeEncodeError(文件已生成但最后一行崩)。
+# 这里把标准输出切到 UTF-8, 保证本地直接 `python etf_rotation.py` 不会在最后一步炸掉。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # 与网格看板(grid_trading.py)统一行情判定口径
 try:
@@ -43,6 +52,8 @@ W_M, W_V, W_F   = 0.4, 0.3, 0.3
 
 HOLD_SIGNAL     = 2         # 信号定义: 综合前N(中性默认前2)且风控通过
 BACKTEST_HOLDS  = [1, 3, 5, 10, 20]   # 回测持有期档位(天)
+BT_SIGNAL_N     = 20        # 回测统计口径: 取综合前N名(样本更足); 实盘信号仍用 HOLD_SIGNAL
+LOW_SAMPLE      = 5         # 回测样本数低于此值 → 页面标注"样本少", 均值不可信
 HISTORY_WINDOW  = 100       # 用于回测/信号天数回溯的交易日窗口
 GRID_PCT        = 0.05      # 网格幅度 ±5%
 MAX_HOLD        = 2         # 中性时持仓数量(展示用)
@@ -282,8 +293,11 @@ def signal_days(ranks, matrix, codes):
     return res
 
 
-def backtest(ranks, matrix, code):
-    """历史回测: 信号触发后持有[1,3,5,10,20]天收益, 取均值最高为最优持股天数"""
+def backtest(ranks, matrix, code, signal_n=None):
+    """历史回测: 信号触发后持有[1,3,5,10,20]天收益, 取均值最高为最优持股天数
+    signal_n: 回测统计口径取综合前N名, 默认 BT_SIGNAL_N(样本更足);
+              实盘选股口径仍是 HOLD_SIGNAL(前2名), 两者分离以免样本过薄"""
+    n_top = signal_n if signal_n else BT_SIGNAL_N
     facs = matrix.get(code)
     if not facs:
         return None
@@ -294,7 +308,7 @@ def backtest(ranks, matrix, code):
         if idx + maxk >= L:
             break
         day = ranks[idx]
-        top = set(x[0] for x in day[:HOLD_SIGNAL])
+        top = set(x[0] for x in day[:n_top])
         fc = facs[idx]
         if fc is None or code not in top or not fc["pass"]:
             continue
@@ -311,7 +325,8 @@ def backtest(ranks, matrix, code):
            for k, v in rets.items()}
     n = {k: len(v) for k, v in rets.items()}
     best = max(BACKTEST_HOLDS, key=lambda k: avg[k])
-    return {"best": best, "avg": avg, "win": win, "n": n[BACKTEST_HOLDS[0]]}
+    return {"best": best, "avg": avg, "win": win, "n": n[BACKTEST_HOLDS[0]],
+            "n_by_hold": n, "signal_n": n_top}
 
 
 def advice(fac, sig_days, bt, market, rows=None):
@@ -422,6 +437,8 @@ def render(records, now_str, live, market=None):
         bt = r.get("bt")
         bt_s = ("%d天" % bt["best"]) if bt else "—"
         bt_d = ("均%s" % sgn(bt["avg"][bt["best"]])) if bt else ""
+        bt_n = bt["n"] if bt else 0
+        bt_warn = '<span class="lowsample">⚠样本少</span>' if bt and bt_n < LOW_SAMPLE else ""
         rows_html += (
             "<tr%s>\n"
             "  <td>%d</td><td class=\"code\">%s</td><td class=\"name\">%s</td>\n"
@@ -431,14 +448,14 @@ def render(records, now_str, live, market=None):
             "  <td>%.1f%%</td><td>%.1f</td>\n"
             "  <td>%.2f</td><td>%.1f</td>\n"
             "  <td class=\"total\">%.2f</td><td>%s</td>\n"
-            "  <td>%s</td><td>%s<br><span class=\"td2\">%s</span></td><td class=\"%s\">%s</td>\n"
+            "  <td>%s</td><td>%s%s<br><span class=\"td2\">%s</span></td><td class=\"%s\">%s</td>\n"
             "</tr>\n" % (
                 hl, r["rank"], r["code"], r["name"], r["price"], dcls, sgn(r["day_chg"]),
                 pct_td(r.get("five_chg")),
                 tcls, sgn(r["ten_chg"]), r["m"], r["v_pct"], r["v_score"],
                 r["f_ratio"], r["f_score"], r["total"], badge,
                 (str(sig_d) + "天") if sig_d > 0 else "—",
-                bt_s, bt_d, act_cls, act)
+                bt_s, bt_warn, bt_d, act_cls, act)
         )
 
     # 历史记录
@@ -568,6 +585,8 @@ tr.hl td{border-color:rgba(63,185,80,0.3);}
 .act-hold{color:var(--y);font-weight:600;}
 .act-stop{color:var(--r);font-weight:600;}
 .td2{font-size:10px;color:var(--td);}
+.lowsample{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;
+  background:rgba(210,153,34,0.18);color:var(--y);border:1px solid rgba(210,153,34,0.45);}
 .mkt{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:center;margin:8px auto 22px;padding:12px 20px;border-radius:10px;font-size:14px;max-width:920px;line-height:1.6;}
 .mkt.bull{background:rgba(63,185,80,0.12);border:1px solid var(--g);color:var(--g);}
 .mkt.neutral{background:rgba(210,153,34,0.12);border:1px solid var(--y);color:var(--y);}
@@ -742,15 +761,19 @@ td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--bd);}
 .up{color:var(--up);font-weight:600;}.down{color:var(--down);font-weight:600;}
 .bars{display:flex;align-items:flex-end;gap:3px;height:50px;justify-content:center;}
 .bar{width:10px;border-radius:2px 2px 0 0;min-height:2px;}
+.td2{font-size:10px;color:var(--td);}
+.lowsample{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;
+  background:rgba(210,153,34,.18);color:var(--y);border:1px solid rgba(210,153,34,.45);}
 .ft{text-align:center;margin-top:18px;color:var(--td);font-size:12px;}
 @media(max-width:768px){table{font-size:10px;}th,td{padding:5px 2px;}}
 </style></head><body>
 <div class="hd"><h1>📈 ETF 收益/回测看板</h1>
-<div class="sub">三因子信号触发后，持有 1/3/5/10/20 天的平均收益与胜率（共 %s 只，样本=历史所有信号触发日）</div>
+<div class="sub">三因子信号触发后，持有 1/3/5/10/20 天的平均收益与胜率（共 %s 只，样本合计 %s 次信号触发）</div>
 <div class="dt">📅 %s ｜ 数据源: %s</div>
 <a class="tflink" href="index.html">📊 返回三因子看板</a>
 <a class="gridlink" href="grid.html">🧮 打开网格交易看板 →</a></div>
-<div class="tip">📌 <b>怎么看：</b>「最优持股」=回测中平均收益最高的持有天数；下方数字为各持有期<b>平均收益</b>（红涨绿跌，中国习惯），「最优胜率」为该持有期盈利样本占比。样本不足（无历史信号）的ETF不显示。本看板仅供研究，不构成投资建议。</div>
+<div class="tip">📌 <b>怎么看：</b>「最优持股」=回测中平均收益最高的持有天数；下方数字为各持有期<b>平均收益</b>（红涨绿跌，中国习惯），「最优胜率」为该持有期盈利样本占比。<br>
+🔎 <b>统计口径：</b>回测取综合得分<b>前 %s 名</b>且风控通过（实盘选股口径仍是前 2 名，两者分离以保证样本量）。单元格下方小字为该持有期样本数，样本 &lt; %s 标 <span class="lowsample">⚠样本少</span>，均值与胜率参考价值有限，请谨慎使用。本看板仅供研究，不构成投资建议。</div>
 <table><thead><tr>
 <th>#</th><th>代码</th><th>名称</th><th>最优持股</th>
 <th>1天</th><th>3天</th><th>5天</th><th>10天</th><th>20天</th>
@@ -776,6 +799,7 @@ def render_backtest(records, bt, now_str, live):
     body = ""
     for i, (r, b) in enumerate(rows, 1):
         avg = b["avg"]; win = b["win"]; best = b["best"]
+        ns = b.get("n_by_hold", {})
         maxabs = max(abs(v) for v in avg.values()) or 1
         bars = '<div class="bars">'
         for k in BACKTEST_HOLDS:
@@ -789,19 +813,28 @@ def render_backtest(records, bt, now_str, live):
         def cell(k):
             v = avg.get(k, 0)
             cls = "up" if v >= 0 else "down"
-            return '<td class="%s">%+.1f%%</td>' % (cls, v)
+            n = ns.get(k, b["n"])
+            if n < LOW_SAMPLE:
+                tag = '<span class="lowsample">n=%d</span>' % n
+            else:
+                tag = '<span class="td2">n=%d</span>' % n
+            return '<td class="%s">%+.1f%%<br>%s</td>' % (cls, v, tag)
+        low_mark = '<span class="lowsample">⚠样本少</span>' if b["n"] < LOW_SAMPLE else ""
         body += (
             "<tr>\n"
             "  <td>%d</td><td class='code'>%s</td><td class='name'>%s</td>\n"
             "  <td class='best'>%d天</td>\n%s%s%s%s%s\n"
-            "  <td>%.0f%%</td><td>%d</td><td>%s</td>\n</tr>\n" % (
+            "  <td>%.0f%%</td><td>%d%s</td><td>%s</td>\n</tr>\n" % (
                 i, r["code"], r["name"], best,
                 cell(1), cell(3), cell(5), cell(10), cell(20),
-                win.get(best, 0), b["n"], bars)
+                win.get(best, 0), b["n"], low_mark, bars)
         )
 
     src = "新浪财经(实时)" if live else "新浪财经(离线快照)"
-    return BACKTEST_TPL % (now_str, src, len(rows), body)
+    bt_n = sum(b["n"] for _, b in rows)
+    # 模板占位符顺序: 只数, 样本合计, 时间, 数据源, BT_SIGNAL_N, LOW_SAMPLE, 表体
+    return BACKTEST_TPL % (len(rows), bt_n, now_str, src,
+                           BT_SIGNAL_N, LOW_SAMPLE, body)
 
 
 if __name__ == "__main__":

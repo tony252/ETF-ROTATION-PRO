@@ -25,10 +25,18 @@ ETF 网格交易看板生成器
 本地用法: python grid_trading.py
 """
 import json
+import sys
 import time
 import datetime
 import urllib.request
 import urllib.error
+
+# 同 etf_rotation.py: 避免 Windows GBK 控制台下打印 emoji 抛 UnicodeEncodeError
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # ===================== 参数区(可改) =====================
 ADX_TREND   = 25      # ADX>=此值判趋势市
