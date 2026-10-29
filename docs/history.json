@@ -1,13 +1,5 @@
 [
   {
-    "time": "2026-10-23 07:37",
-    "holds": "30年国债ETF(22.8)",
-    "total": 48,
-    "pass": 2,
-    "market": "弱势",
-    "weight": 20
-  },
-  {
     "time": "2026-10-23 08:41",
     "holds": "30年国债ETF(22.8)",
     "total": 48,
@@ -236,6 +228,14 @@
     "holds": "十年国债ETF(26.3)",
     "total": 48,
     "pass": 4,
+    "market": "弱势",
+    "weight": 20
+  },
+  {
+    "time": "2026-10-29 22:26",
+    "holds": "消费ETF(39.8)",
+    "total": 48,
+    "pass": 6,
     "market": "弱势",
     "weight": 20
   }
