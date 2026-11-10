@@ -1,13 +1,5 @@
 [
   {
-    "time": "2026-11-03 11:28",
-    "holds": "传媒ETF(32.0)",
-    "total": 47,
-    "pass": 7,
-    "market": "弱势",
-    "weight": 20
-  },
-  {
     "time": "2026-11-03 11:51",
     "holds": "旅游ETF(34.8)",
     "total": 48,
@@ -236,6 +228,14 @@
     "holds": "德国ETF(47.5)",
     "total": 48,
     "pass": 14,
+    "market": "弱势",
+    "weight": 20
+  },
+  {
+    "time": "2026-11-10 23:38",
+    "holds": "德国ETF(43.6)",
+    "total": 46,
+    "pass": 16,
     "market": "弱势",
     "weight": 20
   }
