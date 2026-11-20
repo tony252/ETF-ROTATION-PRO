@@ -1,13 +1,5 @@
 [
   {
-    "time": "2026-11-13 10:38",
-    "holds": "光伏ETF(49.8)",
-    "total": 48,
-    "pass": 17,
-    "market": "弱势",
-    "weight": 20
-  },
-  {
     "time": "2026-11-13 11:15",
     "holds": "光伏ETF(49.8)",
     "total": 48,
@@ -236,6 +228,14 @@
     "holds": "证券保险ETF(32.8)",
     "total": 48,
     "pass": 10,
+    "market": "弱势",
+    "weight": 20
+  },
+  {
+    "time": "2026-11-21 00:12",
+    "holds": "上证50ETF(48.1)",
+    "total": 48,
+    "pass": 8,
     "market": "弱势",
     "weight": 20
   }
